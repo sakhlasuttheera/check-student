@@ -9,9 +9,7 @@
   <title>ระบบเช็กชื่อสแกนใบหน้า & QR Code ม.1 - ม.3</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
-  <!-- ไลบรารีสแกน QR Code -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-  <!-- ไลบรารี AI สแกนใบหน้า -->
   <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
   <style>
     body { 
@@ -29,7 +27,6 @@
     .clock-text { font-size: 2rem; font-weight: 700; letter-spacing: 1px; line-height: 1.1; }
     .date-text { font-size: 0.95rem; opacity: 0.95; }
     
-    /* กล่องแสดงกล้องสแกนใบหน้า */
     .face-cam-wrapper {
       position: relative;
       width: 100%;
@@ -69,7 +66,6 @@
 
 <div class="container py-2 px-3 no-print" style="max-width: 600px;">
   
-  <!-- ส่วนหัวและนาฬิกา -->
   <div class="datetime-banner mb-3">
     <div class="d-flex justify-content-between align-items-center mb-1">
       <span class="fw-bold">📋 ระบบเช็กชื่อ ม.1 - ม.3</span>
@@ -83,20 +79,16 @@
     </div>
   </div>
 
-  <!-- ปุ่มสลับโหมดการสแกน -->
   <div class="btn-group w-100 mb-2 shadow-sm">
     <button id="btn-mode-qr" class="btn btn-dark py-2 fw-bold" onclick="switchMode('QR')">📷 โหมดสแกน QR Code</button>
     <button id="btn-mode-face" class="btn btn-outline-dark py-2 fw-bold" onclick="switchMode('FACE')">😊 โหมดสแกนใบหน้า (AI)</button>
   </div>
 
-  <!-- กล้องสแกน -->
   <div class="card border-0 shadow-sm rounded-4 mb-3">
     <div class="card-body text-center p-2">
-      <!-- พื้นที่กล้อง QR -->
       <div id="qr-container">
         <div id="reader" style="width: 100%; border-radius: 12px; overflow: hidden;"></div>
       </div>
-      <!-- พื้นที่กล้องใบหน้า -->
       <div id="face-container" style="display: none;">
         <div class="face-cam-wrapper">
           <video id="face-video" autoplay muted playsinline></video>
@@ -107,7 +99,6 @@
     </div>
   </div>
 
-  <!-- ตัวกรองระดับชั้น -->
   <div class="btn-group w-100 mb-3 shadow-sm" role="group">
     <button class="btn btn-primary grade-btn py-2 fw-bold" onclick="selectGrade('ALL', this)">ทั้งหมด</button>
     <button class="btn btn-light grade-btn py-2 fw-bold" onclick="selectGrade('ม.1', this)">ม.1</button>
@@ -115,7 +106,6 @@
     <button class="btn btn-light grade-btn py-2 fw-bold" onclick="selectGrade('ม.3', this)">ม.3</button>
   </div>
 
-  <!-- สรุปยอด 4 สถานะ -->
   <div class="row g-2 mb-3 text-center">
     <div class="col-3"><div class="p-2 bg-success text-white rounded-3 shadow-sm"><small>มาเรียน</small><div id="cnt-present" class="fs-4 fw-bold">0</div></div></div>
     <div class="col-3"><div class="p-2 bg-warning text-dark rounded-3 shadow-sm"><small>มาสาย</small><div id="cnt-late" class="fs-4 fw-bold">0</div></div></div>
@@ -123,20 +113,17 @@
     <div class="col-3"><div class="p-2 bg-danger text-white rounded-3 shadow-sm"><small>ขาด</small><div id="cnt-absent" class="fs-4 fw-bold">0</div></div></div>
   </div>
 
-  <!-- ช่องค้นหาและปุ่มปิดเช็กชื่อ -->
   <div class="d-flex gap-2 mb-3">
     <input type="text" id="search-box" class="form-control rounded-3" placeholder="🔍 ค้นหาชื่อ หรือ เลขที่..." onkeyup="renderList()">
     <button class="btn btn-danger rounded-3 text-nowrap fw-bold" onclick="closeAttendance()">ปิดเช็กชื่อ</button>
   </div>
 
-  <!-- รายชื่อนักเรียน -->
   <div id="student-list">
     <div class="text-center py-4 text-muted">กำลังโหลดรายชื่อนักเรียน...</div>
   </div>
 
 </div>
 
-<!-- ส่วนสำหรับสั่งพิมพ์บัตร QR Code -->
 <div class="container print-only">
   <h4 class="text-center mb-3" id="print-title">บัตร QR Code ประจำตัวนักเรียน</h4>
   <div class="row g-3" id="qr-print-area"></div>
@@ -145,8 +132,6 @@
 <script>
   // ⚠️ นำลิงก์ Web App URL จาก Google Apps Script มาวางแทนที่ข้อความด้านล่าง
   const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwXORnt-WcA1zr4Y1wePG5jtZHpe2owWwk9bT4vj9VVTJEw1zOVKDuZ-8Na3OrzFiRhYg/exec";
-  
-  // โฟลเดอร์เก็บรูปนักเรียนบน GitHub (ชื่อไฟล์ต้องเป็น รหัสนักเรียน.jpg เช่น 67001.jpg)
   const FACE_FOLDER = "./faces/";
 
   let studentsData = [];
@@ -175,12 +160,9 @@
     document.getElementById('live-clock').innerText = now.toLocaleTimeString('th-TH', { hour12: false }) + ' น.';
   }
 
-  // สลับโหมดระหว่าง QR Code กับ สแกนใบหน้า
   async function switchMode(mode) {
     if (currentMode === mode) return;
     currentMode = mode;
-
-    // ปิดกล้องเดิมก่อน
     await stopAllCameras();
 
     if (mode === 'QR') {
@@ -209,7 +191,6 @@
     }
   }
 
-  // --- โหมด 1: สแกน QR Code ---
   function startQRMode() {
     const alertBox = document.getElementById('scan-alert');
     html5QrCode = new Html5Qrcode("reader");
@@ -226,11 +207,10 @@
     });
   }
 
-  // --- โหมด 2: สแกนใบหน้า AI ---
   async function startFaceMode() {
     const alertBox = document.getElementById('scan-alert');
     alertBox.className = 'alert alert-warning mt-2 mb-0 py-2 fw-bold small';
-    alertBox.innerText = '⏳ กำลังโหลดระบบ AI จดจำใบหน้า (ครั้งแรกใช้เวลาประมาณ 5-10 วินาที)...';
+    alertBox.innerText = '⏳ กำลังโหลดระบบ AI จดจำใบหน้า...';
 
     try {
       if (!faceModelsLoaded) {
@@ -244,13 +224,12 @@
       }
 
       if (!faceMatcher) {
-        alertBox.innerText = '⏳ กำลังประมวลผลฐานข้อมูลรูปหน้านักเรียน...';
-        faceMatcher = await buildFaceMatcher();
+        faceMatcher = await buildFaceMatcher(alertBox);
       }
 
       if (!faceMatcher) {
         alertBox.className = 'alert alert-danger mt-2 mb-0 py-2 fw-bold small';
-        alertBox.innerText = '⚠️ ยังไม่พบรูปนักเรียนในโฟลเดอร์ faces/ กรุณาอัปโหลดรูปก่อน';
+        alertBox.innerText = '⚠️ ไม่พบรูปนักเรียนในโฟลเดอร์ faces/ บน GitHub (กรุณาเช็กว่าอัปโหลดและกด Commit changes แล้ว)';
         return;
       }
 
@@ -269,25 +248,38 @@
     }
   }
 
-  // โหลดรูปนักเรียนจากโฟลเดอร์ faces/ มาสร้างค่าใบหน้าอ้างอิง
-  async function buildFaceMatcher() {
-    const labeledDescriptors = [];
-    for (const s of studentsData) {
+  // ค้นหาไฟล์รูปทั้งนามสกุล .jpg, .jpeg, .JPG, .JPEG, .png อัตโนมัติ
+  async function tryLoadStudentImage(id) {
+    const extensions = ['jpg', 'jpeg', 'JPG', 'JPEG', 'png'];
+    for (const ext of extensions) {
       try {
-        const imgUrl = `${FACE_FOLDER}${s.id}.jpg`;
-        const img = await faceapi.fetchImage(imgUrl);
+        const img = await faceapi.fetchImage(`${FACE_FOLDER}${id}.${ext}`);
+        return img;
+      } catch (e) {}
+    }
+    return null;
+  }
+
+  async function buildFaceMatcher(alertBox) {
+    const labeledDescriptors = [];
+    let loadedCount = 0;
+
+    for (let i = 0; i < studentsData.length; i++) {
+      const s = studentsData[i];
+      alertBox.innerText = `⏳ กำลังประมวลผลใบหน้านักเรียน (${i + 1}/${studentsData.length})...`;
+      const img = await tryLoadStudentImage(s.id);
+      if (img) {
         const detection = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
           .withFaceLandmarks()
           .withFaceDescriptor();
         if (detection) {
           labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(String(s.id), [detection.descriptor]));
+          loadedCount++;
         }
-      } catch (e) {
-        // ข้ามนักเรียนที่ยังไม่มีไฟล์รูป
       }
     }
     if (labeledDescriptors.length === 0) return null;
-    return new faceapi.FaceMatcher(labeledDescriptors, 0.50); // ค่าความแม่นยำ 0.50
+    return new faceapi.FaceMatcher(labeledDescriptors, 0.50);
   }
 
   function detectFaceLoop(video) {
