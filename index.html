@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#0d6efd">
+  <title>ระบบเช็กชื่อนักเรียน ม.1 - ม.3</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <style>
+    body { 
+      background-color: #f0f2f5; 
+      font-family: 'Sarabun', sans-serif; 
+      padding-bottom: 40px;
+    }
+    /* แถบวันที่และเวลาด้านบน */
+    .datetime-banner {
+      background: linear-gradient(135deg, #0d6efd, #0043a8);
+      color: white;
+      border-radius: 16px;
+      padding: 14px 16px;
+      box-shadow: 0 4px 12px rgba(13, 110, 253, 0.25);
+    }
+    .clock-text {
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      line-height: 1.1;
+    }
+    .date-text {
+      font-size: 0.95rem;
+      opacity: 0.95;
+    }
+    /* การ์ดรายชื่อนักเรียนบนมือถือ */
+    .student-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+      border-left: 5px solid #adb5bd;
+    }
+    .student-card.st-present { border-left-color: #198754; }
+    .student-card.st-late { border-left-color: #ffc107; }
+    .student-card.st-leave { border-left-color: #0dcaf0; }
+    .student-card.st-absent { border-left-color: #dc3545; }
+
+    .btn-action {
+      flex: 1;
+      padding: 8px 4px;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+    .card-qr { break-inside: avoid; border: 1px dashed #999; padding: 10px; text-align: center; background: #fff; }
+    @media print {
+      .no-print { display: none !important; }
+      .print-only { display: block !important; }
+      body { background-color: #fff; }
+    }
+    .print-only { display: none; }
+  </style>
+</head>
+<body>
+
+<div class="container py-2 px-3 no-print" style="max-width: 600px;">
+  
+  <!-- ส่วนหัวและนาฬิกาแสดงวันที่-เวลาชัดเจน -->
+  <div class="datetime-banner mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-1">
+      <span class="fw-bold">📋 ระบบเช็กชื่อ ม.1 - ม.3</span>
+      <button class="btn btn-light btn-sm fw-bold text-primary rounded-pill px-3" onclick="window.print()">
+        🖨️ พิมพ์บัตร (<span id="print-label">ทั้งหมด</span>)
+      </button>
+    </div>
+    <div class="text-center mt-2 pt-2 border-top border-light border-opacity-25">
+      <div id="live-date" class="date-text">กำลังโหลดวันที่...</div>
+      <div id="live-clock" class="clock-text">00:00:00</div>
+    </div>
+  </div>
+
+  <!-- กล้องสแกน QR Code -->
+  <div class="card border-0 shadow-sm rounded-4 mb-3">
+    <div class="card-body text-center p-2">
+      <div id="reader" style="width: 100%; border-radius: 12px; overflow: hidden;"></div>
+      <div id="scan-alert" class="alert alert-secondary mt-2 mb-0 py-2 fw-bold small">กำลังเปิดกล้องสแกนอัตโนมัติ...</div>
+    </div>
+  </div>
+
+  <!-- ตัวกรองระดับชั้น -->
+  <div class="btn-group w-100 mb-3 shadow-sm" role="group">
+    <button class="btn btn-primary grade-btn py-2 fw-bold" onclick="selectGrade('ALL', this)">ทั้งหมด</button>
+    <button class="btn btn-light grade-btn py-2 fw-bold" onclick="selectGrade('ม.1', this)">ม.1</button>
+    <button class="btn btn-light grade-btn py-2 fw-bold" onclick="selectGrade('ม.2', this)">ม.2</button>
+    <button class="btn btn-light grade-btn py-2 fw-bold" onclick="selectGrade('ม.3', this)">ม.3</button>
+  </div>
+
+  <!-- สรุปยอด 4 สถานะ -->
+  <div class="row g-2 mb-3 text-center">
+    <div class="col-3"><div class="p-2 bg-success text-white rounded-3 shadow-sm"><small>มาเรียน</small><div id="cnt-present" class="fs-4 fw-bold">0</div></div></div>
+    <div class="col-3"><div class="p-2 bg-warning text-dark rounded-3 shadow-sm"><small>มาสาย</small><div id="cnt-late" class="fs-4 fw-bold">0</div></div></div>
+    <div class="col-3"><div class="p-2 bg-info text-dark rounded-3 shadow-sm"><small>ลา</small><div id="cnt-leave" class="fs-4 fw-bold">0</div></div></div>
+    <div class="col-3"><div class="p-2 bg-danger text-white rounded-3 shadow-sm"><small>ขาด</small><div id="cnt-absent" class="fs-4 fw-bold">0</div></div></div>
+  </div>
+
+  <!-- ช่องค้นหาและปุ่มปิดเช็กชื่อ -->
+  <div class="d-flex gap-2 mb-3">
+    <input type="text" id="search-box" class="form-control rounded-3" placeholder="🔍 ค้นหาชื่อ หรือ เลขที่..." onkeyup="renderList()">
+    <button class="btn btn-danger rounded-3 text-nowrap fw-bold" onclick="closeAttendance()">ปิดเช็กชื่อ</button>
+  </div>
+
+  <!-- รายชื่อนักเรียนแบบการ์ด (กดง่ายบนมือถือ) -->
+  <div id="student-list">
+    <div class="text-center py-4 text-muted">กำลังโหลดรายชื่อนักเรียน...</div>
+  </div>
+
+</div>
+
+<!-- ส่วนสำหรับสั่งพิมพ์บัตร QR Code -->
+<div class="container print-only">
+  <h4 class="text-center mb-3" id="print-title">บัตร QR Code ประจำตัวนักเรียน</h4>
+  <div class="row g-3" id="qr-print-area"></div>
+</div>
+
+<script>
+  // ⚠️ นำลิงก์ Web App URL จาก Google Apps Script มาวางแทนที่ข้อความในเครื่องหมายคำพูดด้านล่าง
+  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwXORnt-WcA1zr4Y1wePG5jtZHpe2owWwk9bT4vj9VVTJEw1zOVKDuZ-8Na3OrzFiRhYg/exec";
+
+  let studentsData = [];
+  let currentGrade = 'ALL';
+  let lastScannedId = "";
+  let lastScanTime = 0;
+
+  window.onload = () => {
+    updateDateTime();
+    setInterval(updateDateTime, 1000); // อัปเดตนาฬิกาทุก 1 วินาที
+    startCameraAuto();
+    loadData();
+  };
+
+  // แสดงวันที่และเวลาภาษาไทยแบบ Real-time
+  function updateDateTime() {
+    const now = new Date();
+    const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    document.getElementById('live-date').innerText = now.toLocaleDateString('th-TH', dateOptions);
+    document.getElementById('live-clock').innerText = now.toLocaleTimeString('th-TH', { hour12: false }) + ' น.';
+  }
+
+  function startCameraAuto() {
+    const html5QrCode = new Html5Qrcode("reader");
+    const alertBox = document.getElementById('scan-alert');
+    
+    html5QrCode.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: { width: 220, height: 220 } },
+      onScanSuccess
+    ).then(() => {
+      alertBox.className = 'alert alert-info mt-2 mb-0 py-2 fw-bold small';
+      alertBox.innerText = '📷 กล้องพร้อมใช้งาน! ส่องบัตร QR เพื่อเช็กชื่อได้เลย';
+    }).catch(err => {
+      alertBox.className = 'alert alert-secondary mt-2 mb-0 py-2 small';
+      alertBox.innerText = 'โหมดแสดงผลบนคอมพิวเตอร์ (เปิดบนมือถือเพื่อสแกนกล้องสด)';
+    });
+  }
+
+  function loadData() {
+    fetch(SCRIPT_URL + "?action=getStudents")
+      .then(res => res.json())
+      .then(data => {
+        studentsData = data;
+        renderList();
+        prepareQRCards();
+      });
+  }
+
+  function selectGrade(grade, btn) {
+    currentGrade = grade;
+    document.querySelectorAll('.grade-btn').forEach(b => {
+      b.classList.remove('btn-primary');
+      b.classList.add('btn-light');
+    });
+    btn.classList.remove('btn-light');
+    btn.classList.add('btn-primary');
+    document.getElementById('print-label').innerText = (grade === 'ALL') ? 'ทั้งหมด' : grade;
+    renderList();
+    prepareQRCards();
+  }
+
+  function renderList() {
+    const keyword = document.getElementById('search-box').value.toLowerCase();
+    const listArea = document.getElementById('student-list');
+    listArea.innerHTML = '';
+    let cP = 0, cL = 0, cLv = 0, cA = 0;
+
+    studentsData.forEach(s => {
+      if (currentGrade !== 'ALL' && s.grade !== currentGrade) return;
+      if (s.status === 'มาเรียน') cP++;
+      else if (s.status === 'มาสาย') cL++;
+      else if (s.status === 'ลา') cLv++;
+      else if (s.status === 'ขาดเรียน') cA++;
+
+      if (!s.name.toLowerCase().includes(keyword) && !String(s.no).includes(keyword)) return;
+
+      let cardBorder = '';
+      let badge = 'bg-secondary';
+      if (s.status === 'มาเรียน') { cardBorder = 'st-present'; badge = 'bg-success'; }
+      else if (s.status === 'มาสาย') { cardBorder = 'st-late'; badge = 'bg-warning text-dark'; }
+      else if (s.status === 'ลา') { cardBorder = 'st-leave'; badge = 'bg-info text-dark'; }
+      else if (s.status === 'ขาดเรียน') { cardBorder = 'st-absent'; badge = 'bg-danger'; }
+
+      listArea.innerHTML += `
+        <div class="student-card ${cardBorder}">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <div>
+              <span class="badge bg-dark me-1">${s.grade}</span>
+              <span class="fw-bold text-primary">เลขที่ ${s.no}</span>
+              <div class="fw-bold fs-6 mt-1">${s.name}</div>
+              <small class="text-muted">รหัส: ${s.id} | เวลาสแกน: ${s.time}</small>
+            </div>
+            <span class="badge ${badge} px-2 py-2 fs-6">${s.status}</span>
+          </div>
+          <div class="d-flex gap-1 mt-2">
+            <button class="btn btn-outline-success btn-action" onclick="updateStatus('${s.id}', 'มาเรียน')">มา</button>
+            <button class="btn btn-outline-warning btn-action" onclick="updateStatus('${s.id}', 'มาสาย')">สาย</button>
+            <button class="btn btn-outline-info btn-action" onclick="manualLeave('${s.id}')">ลา</button>
+            <button class="btn btn-outline-danger btn-action" onclick="updateStatus('${s.id}', 'ขาดเรียน')">ขาด</button>
+          </div>
+        </div>`;
+    });
+
+    document.getElementById('cnt-present').innerText = cP;
+    document.getElementById('cnt-late').innerText = cL;
+    document.getElementById('cnt-leave').innerText = cLv;
+    document.getElementById('cnt-absent').innerText = cA;
+  }
+
+  function prepareQRCards() {
+    const area = document.getElementById('qr-print-area');
+    const title = document.getElementById('print-title');
+    title.innerText = (currentGrade === 'ALL') ? 'บัตร QR Code ประจำตัวนักเรียน (ม.1 - ม.3)' : `บัตร QR Code ประจำตัวนักเรียนชั้น ${currentGrade}`;
+    area.innerHTML = '';
+
+    const filtered = studentsData.filter(s => currentGrade === 'ALL' || s.grade === currentGrade);
+    filtered.forEach(s => {
+      const qrUrl = `https://quickchart.io/qr?size=120&text=${encodeURIComponent(s.id)}`;
+      area.innerHTML += `
+        <div class="col-3">
+          <div class="card-qr">
+            <img src="${qrUrl}" width="100" height="100" alt="${s.id}">
+            <div class="fw-bold mt-1">${s.grade} เลขที่ ${s.no}</div>
+            <div style="font-size: 12px;">${s.name}</div>
+            <small class="text-muted">${s.id}</small>
+          </div>
+        </div>
+      `;
+    });
+  }
+
+  function onScanSuccess(decodedText) {
+    const now = Date.now();
+    if (decodedText === lastScannedId && (now - lastScanTime) < 3000) return;
+    lastScannedId = decodedText;
+    lastScanTime = now;
+
+    playBeep();
+    updateStatus(decodedText, null);
+  }
+
+  function updateStatus(studentId, status, note = '') {
+    const alertBox = document.getElementById('scan-alert');
+    alertBox.className = 'alert alert-warning mt-2 mb-0 py-2 fw-bold small';
+    alertBox.innerText = `กำลังบันทึก ${studentId}...`;
+
+    fetch(SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'record', studentId: studentId, status: status, note: note })
+    })
+    .then(res => res.json())
+    .then(res => {
+      if (res.success) {
+        alertBox.className = 'alert alert-success mt-2 mb-0 py-2 fw-bold small';
+        alertBox.innerText = `✓ [${res.student.grade}] เลขที่ ${res.student.no} ${res.student.name} (${res.status} - ${res.time})`;
+        const idx = studentsData.findIndex(s => s.id === res.student.id);
+        if (idx !== -1) {
+          studentsData[idx].status = res.status;
+          studentsData[idx].time = res.time;
+          renderList();
+        }
+      } else {
+        alertBox.className = 'alert alert-danger mt-2 mb-0 py-2 fw-bold small';
+        alertBox.innerText = res.message;
+      }
+    });
+  }
+
+  function manualLeave(id) {
+    const note = prompt("ระบุเหตุผลการลา (เช่น ลาป่วย / ลากิจ):", "ลาป่วย");
+    if (note !== null) updateStatus(id, 'ลา', note);
+  }
+
+  function closeAttendance() {
+    const labelText = (currentGrade === 'ALL') ? 'ทั้งหมดทุกชั้น' : `ชั้น ${currentGrade}`;
+    if (!confirm(`ยืนยันปรับสถานะคนที่ยังไม่เช็กชื่อของ [${labelText}] เป็น 'ขาดเรียน' ใช่หรือไม่?`)) return;
+    
+    fetch(SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'close', grade: currentGrade })
+    })
+    .then(res => res.json())
+    .then(res => {
+      alert(`ปรับสถานะเป็นขาดเรียนเรียบร้อยแล้วจำนวน ${res.count} คน`);
+      loadData();
+    });
+  }
+
+  function playBeep() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      osc.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.12);
+    } catch (e) {}
+  }
+</script>
+</body>
+</html>
