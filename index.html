@@ -69,9 +69,14 @@
   <div class="datetime-banner mb-3">
     <div class="d-flex justify-content-between align-items-center mb-1">
       <span class="fw-bold">📋 ระบบเช็กชื่อ ม.1 - ม.3</span>
-      <button class="btn btn-light btn-sm fw-bold text-primary rounded-pill px-3" onclick="window.print()">
-        🖨️ พิมพ์บัตร (<span id="print-label">ทั้งหมด</span>)
-      </button>
+      <div class="d-flex gap-1">
+        <button class="btn btn-warning btn-sm fw-bold rounded-pill px-2" onclick="exportFaceDescriptors()" title="กดสร้างไฟล์ face_data.json ครั้งเดียวเพื่อความเร็วสูงสุด">
+          ⚡ สร้างไฟล์สแกนเร็ว
+        </button>
+        <button class="btn btn-light btn-sm fw-bold text-primary rounded-pill px-2" onclick="window.print()">
+          🖨️ พิมพ์บัตร (<span id="print-label">ทั้งหมด</span>)
+        </button>
+      </div>
     </div>
     <div class="text-center mt-2 pt-2 border-top border-light border-opacity-25">
       <div id="live-date" class="date-text">กำลังโหลดวันที่...</div>
@@ -133,6 +138,7 @@
   // ⚠️ นำลิงก์ Web App URL จาก Google Apps Script มาวางแทนที่ข้อความด้านล่าง
   const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwXORnt-WcA1zr4Y1wePG5jtZHpe2owWwk9bT4vj9VVTJEw1zOVKDuZ-8Na3OrzFiRhYg/exec";
   const FACE_FOLDER = "./faces/";
+  const FACE_DATA_FILE = "./face_data.json";
 
   let studentsData = [];
   let currentGrade = 'ALL';
@@ -151,6 +157,7 @@
     setInterval(updateDateTime, 1000);
     loadData();
     startQRMode();
+    preloadFaceAI(); // โหลดโมเดล AI รอไว้เบื้องหลังทันทีที่เปิดเว็บ
   };
 
   function updateDateTime() {
@@ -158,6 +165,31 @@
     const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
     document.getElementById('live-date').innerText = now.toLocaleDateString('th-TH', dateOptions);
     document.getElementById('live-clock').innerText = now.toLocaleTimeString('th-TH', { hour12: false }) + ' น.';
+  }
+
+  // โหลดโมเดล AI และไฟล์ face_data.json รอไว้ล่วงหน้าทันทีที่เปิดหน้าเว็บ
+  async function preloadFaceAI() {
+    try {
+      const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
+      await Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+      ]);
+      faceModelsLoaded = true;
+
+      // พยายามโหลดจากไฟล์สำเร็จรูป face_data.json ก่อน (ใช้เวลาไม่ถึง 0.2 วินาที!)
+      const res = await fetch(FACE_DATA_FILE);
+      if (res.ok) {
+        const json = await res.json();
+        const labeledDescriptors = json.map(item => 
+          new faceapi.LabeledFaceDescriptors(item.label, item.descriptors.map(d => new Float32Array(d)))
+        );
+        if (labeledDescriptors.length > 0) {
+          faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.50);
+        }
+      }
+    } catch (e) {}
   }
 
   async function switchMode(mode) {
@@ -209,46 +241,88 @@
 
   async function startFaceMode() {
     const alertBox = document.getElementById('scan-alert');
-    alertBox.className = 'alert alert-warning mt-2 mb-0 py-2 fw-bold small';
-    alertBox.innerText = '⏳ กำลังโหลดระบบ AI จดจำใบหน้า...';
-
     try {
+      // เปิดกล้องทันทีโดยไม่ต้องรอ
+      const video = document.getElementById('face-video');
+      videoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      video.srcObject = videoStream;
+
       if (!faceModelsLoaded) {
-        const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
-        await Promise.all([
-          faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-          faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-          faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
-        ]);
-        faceModelsLoaded = true;
+        alertBox.className = 'alert alert-warning mt-2 mb-0 py-2 fw-bold small';
+        alertBox.innerText = '⏳ กำลังเตรียมระบบ AI สักครู่...';
+        await preloadFaceAI();
       }
 
+      // ถ้ายังไม่มีไฟล์ face_data.json ให้ดึงจากโฟลเดอร์รูปสำรอง
       if (!faceMatcher) {
         faceMatcher = await buildFaceMatcher(alertBox);
       }
 
       if (!faceMatcher) {
         alertBox.className = 'alert alert-danger mt-2 mb-0 py-2 fw-bold small';
-        alertBox.innerText = '⚠️ ไม่พบรูปนักเรียนในโฟลเดอร์ faces/ บน GitHub (กรุณาเช็กว่าอัปโหลดและกด Commit changes แล้ว)';
+        alertBox.innerText = '⚠️ ยังไม่พบข้อมูลใบหน้า กรุณากดปุ่มสีเหลือง "⚡ สร้างไฟล์สแกนเร็ว" ด้านบนขวา';
         return;
       }
 
-      const video = document.getElementById('face-video');
-      videoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-      video.srcObject = videoStream;
+      alertBox.className = 'alert alert-success mt-2 mb-0 py-2 fw-bold small';
+      alertBox.innerText = '😊 พร้อมสแกนใบหน้าทันที! หันหน้าเข้าหากล้องได้เลย';
+      detectFaceLoop(video);
 
-      video.onloadedmetadata = () => {
-        alertBox.className = 'alert alert-success mt-2 mb-0 py-2 fw-bold small';
-        alertBox.innerText = '😊 ระบบสแกนใบหน้าพร้อมแล้ว! หันหน้าเข้าหากล้องได้เลย';
-        detectFaceLoop(video);
-      };
     } catch (err) {
       alertBox.className = 'alert alert-danger mt-2 mb-0 py-2 small';
-      alertBox.innerText = 'ไม่สามารถเปิดกล้องสแกนใบหน้าได้: ' + err.message;
+      alertBox.innerText = 'ไม่สามารถเปิดกล้องได้: ' + err.message;
     }
   }
 
-  // ค้นหาไฟล์รูปทั้งนามสกุล .jpg, .jpeg, .JPG, .JPEG, .png อัตโนมัติ
+  // ฟังก์ชันกดสร้างไฟล์ face_data.json สำเร็จรูป (ทำครั้งเดียว)
+  async function exportFaceDescriptors() {
+    if (studentsData.length === 0) {
+      alert("กรุณารอให้รายชื่อนักเรียนโหลดเสร็จก่อนครับ");
+      return;
+    }
+    const alertBox = document.getElementById('scan-alert');
+    alertBox.className = 'alert alert-warning mt-2 mb-0 py-2 fw-bold small';
+    
+    if (!faceModelsLoaded) {
+      alertBox.innerText = '⏳ กำลังโหลดโมเดล AI...';
+      await preloadFaceAI();
+    }
+
+    const exportList = [];
+    for (let i = 0; i < studentsData.length; i++) {
+      const s = studentsData[i];
+      alertBox.innerText = `⚡ กำลังสกัดข้อมูลใบหน้า (${i + 1}/${studentsData.length}) : ${s.name}`;
+      const img = await tryLoadStudentImage(s.id);
+      if (img) {
+        const detection = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
+          .withFaceLandmarks()
+          .withFaceDescriptor();
+        if (detection) {
+          exportList.push({
+            label: String(s.id),
+            descriptors: [Array.from(detection.descriptor)]
+          });
+        }
+      }
+    }
+
+    if (exportList.length === 0) {
+      alert("ไม่พบรูปนักเรียนในโฟลเดอร์ faces/ เลยครับ");
+      return;
+    }
+
+    // ดาวน์โหลดไฟล์ face_data.json ลงเครื่องอัตโนมัติ
+    const blob = new Blob([JSON.stringify(exportList)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "face_data.json";
+    a.click();
+
+    alertBox.className = 'alert alert-success mt-2 mb-0 py-2 fw-bold small';
+    alertBox.innerText = `✅ สร้างไฟล์ face_data.json สำเร็จ (${exportList.length} คน)! นำไฟล์นี้ไปอัปโหลดขึ้น GitHub ได้เลย`;
+  }
+
   async function tryLoadStudentImage(id) {
     const extensions = ['jpg', 'jpeg', 'JPG', 'JPEG', 'png'];
     for (const ext of extensions) {
@@ -262,8 +336,6 @@
 
   async function buildFaceMatcher(alertBox) {
     const labeledDescriptors = [];
-    let loadedCount = 0;
-
     for (let i = 0; i < studentsData.length; i++) {
       const s = studentsData[i];
       alertBox.innerText = `⏳ กำลังประมวลผลใบหน้านักเรียน (${i + 1}/${studentsData.length})...`;
@@ -274,7 +346,6 @@
           .withFaceDescriptor();
         if (detection) {
           labeledDescriptors.push(new faceapi.LabeledFaceDescriptors(String(s.id), [detection.descriptor]));
-          loadedCount++;
         }
       }
     }
@@ -284,11 +355,12 @@
 
   function detectFaceLoop(video) {
     const canvas = document.getElementById('face-canvas');
-    const displaySize = { width: video.clientWidth, height: video.clientHeight };
-    faceapi.matchDimensions(canvas, displaySize);
-
     faceInterval = setInterval(async () => {
-      if (currentMode !== 'FACE' || video.paused || video.ended) return;
+      if (currentMode !== 'FACE' || video.paused || video.ended || !faceMatcher) return;
+      const displaySize = { width: video.clientWidth, height: video.clientHeight };
+      if (displaySize.width === 0) return;
+      faceapi.matchDimensions(canvas, displaySize);
+
       const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
         .withFaceLandmarks()
         .withFaceDescriptors();
@@ -308,7 +380,7 @@
           new faceapi.draw.DrawBox(box, { label: 'ไม่พบข้อมูลใบหน้า', boxColor: '#dc3545' }).draw(canvas);
         }
       });
-    }, 600);
+    }, 500);
   }
 
   function loadData() {
